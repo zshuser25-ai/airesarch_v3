@@ -1,0 +1,29 @@
+schema_version: 1
+catalog_id: preparation_driven_research
+source_of_truth: preparation.md
+dataset_split:
+  basis: each_dataset_total
+  development_fraction: 0.05
+  formal_fraction: 0.30
+  remaining_fraction: 0.65
+  rounding: ceil_development_and_formal_then_exact_complement
+  frozen_before: literature
+candidate_count: 3
+candidate_kind: research_proposal
+baseline_is_candidate: false
+artifacts:
+  - {id: research_context, path: research_context.json}
+  - {id: datasets_lock, path: datasets.lock.json}
+  - {id: inputs_lock, path: inputs.lock.json}
+  - {id: literature, path: evidence/literature.jsonl}
+  - {id: evidence_synthesis, path: evidence/synthesis.json}
+  - {id: problem_diagnosis, path: 'cycles/{cycle}/problem_diagnosis.json'}
+  - {id: candidates, path: 'cycles/{cycle}/candidates.jsonl'}
+  - {id: selection, path: 'cycles/{cycle}/selection.json'}
+  - {id: experiment_plan, path: 'cycles/{cycle}/experiment_plan.json'}
+  - {id: implementation_manifest, path: 'cycles/{cycle}/implementation_manifest.json'}
+  - {id: validation, path: 'cycles/{cycle}/validation.json'}
+  - {id: metrics, path: 'cycles/{cycle}/metrics.json'}
+  - {id: verified_registry, path: 'cycles/{cycle}/verified_registry.json'}
+  - {id: decision, path: 'cycles/{cycle}/decision.json'}
+  - {id: terminal, path: terminal.json}

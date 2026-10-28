@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kvresearch"
+version = "0.1.0"
+description = "Preparation-driven autonomous research with frozen datasets and auditable evaluation"
+requires-python = ">=3.10"
+dependencies = ["PyYAML>=5.4", "jsonschema>=3.2"]
+
+[project.scripts]
+kvresearch = "kvresearch.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["kvresearch*"]
+
+[tool.setuptools.package-data]
+kvresearch = ["schemas/*.json", "prompts/*.md"]

@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+.venv/
+
+# Fresh inputs and generated research state.
+/inputs/
+/runs/
+/memory/
+/environment/
+/reports/
+/research_request.md
+/try[0-9]*/
+/stage2_research/runs/
+/stage2_research/memory/
+/stage2_research/environment/
+/stage2_research/reports/
+/stage2_research/research_request.md
+*.log

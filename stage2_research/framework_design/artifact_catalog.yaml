@@ -1,0 +1,220 @@
+schema_version: 1
+catalog_id: kvresearch_artifacts_v1
+status: implemented
+
+global_contract:
+  control_formats: [json, jsonl]
+  human_readable_format: md
+  required_control_fields:
+    - schema_version
+    - artifact_type
+    - run_id
+    - created_at
+    - producer
+    - inputs
+    - status
+  accepted_status: [complete, failed, partial]
+  advance_status: complete
+  control_write_policy: atomic_replace_from_temp
+  logs_write_policy: append_only
+
+artifacts:
+  - id: request
+    path: request.md
+    producer: intake
+    consumers: [input_locker, problem_diagnoser, candidate_generator]
+    immutable: true
+    gate: original_user_intent_present
+
+  - id: run_manifest
+    path: run_manifest.json
+    producer: run_initializer
+    consumers: [all]
+    immutable: true
+    required_fields: [run_id, parent_run_id, framework_version, project_root, catalog_sha256]
+    gate: schema_and_identity_valid
+
+  - id: inputs_lock
+    path: inputs.lock.json
+    producer: input_locker
+    consumers: [navigator, validator, executor, verifier]
+    immutable: true
+    required_fields: [model, baselines, datasets, evaluation, cooldown, software, hashes]
+    gate: all_locked_inputs_exist_and_match
+
+  - id: literature
+    path: evidence/literature.jsonl
+    producer: evidence_collector
+    consumers: [evidence_synthesizer, candidate_generator, novelty_checker]
+    immutable: true
+    required_fields: [paper_id, title, source_url, provenance, relevance, verification]
+    gate: sources_are_traceable
+    required_when: initial_run_or_new_mechanism_pivot
+
+  - id: evidence_synthesis
+    path: evidence/synthesis.json
+    producer: evidence_synthesizer
+    consumers: [problem_diagnoser, candidate_generator]
+    immutable: true
+    required_fields: [known_methods, bottlenecks, reusable_mechanisms, rejected_directions]
+    gate: claims_reference_literature_ids
+    required_when: initial_run_or_new_mechanism_pivot
+
+  - id: problem_diagnosis
+    path: cycles/{cycle}/problem_diagnosis.json
+    producer: problem_diagnoser
+    consumers: [candidate_generator, experiment_planner]
+    immutable: true
+    required_fields: [bottleneck, observations, evidence, error_sources, falsification, exclusions]
+    gate: evidence_present_and_diagnosis_falsifiable
+
+  - id: candidates
+    path: cycles/{cycle}/candidates.jsonl
+    producer: candidate_generator
+    consumers: [candidate_selector, novelty_checker]
+    immutable: true
+    required_fields: [candidate_id, mechanism_family, mechanism, causal_chain, storage_design, falsification, novelty_risk]
+    gate: candidates_are_mechanistically_distinct
+
+  - id: selection
+    path: cycles/{cycle}/selection.json
+    producer: candidate_selector
+    consumers: [experiment_planner]
+    immutable: true
+    required_fields: [selected_candidate_id, ranking, rejected, evidence]
+    gate: selected_id_exists_and_rationale_complete
+
+  - id: experiment_plan
+    path: cycles/{cycle}/experiment_plan.json
+    producer: experiment_planner
+    consumers: [implementer, validator, executor]
+    immutable: true
+    required_fields: [candidate_id, code_scope, evaluation_tier, datasets, decoding, outputs, budgets, decision_rules, storage_accounting, workspace, execution]
+    gate: plan_matches_locked_protocol
+
+  - id: implementation_manifest
+    path: cycles/{cycle}/implementation_manifest.json
+    producer: implementer
+    consumers: [validator, executor, verifier]
+    immutable: true
+    required_fields: [workspace, base_hash, changed_files, patch_hash, build_command, run_entrypoint, dependencies]
+    gate: isolated_workspace_and_patch_traceable
+
+  - id: validation
+    path: cycles/{cycle}/validation.json
+    producer: validator
+    consumers: [navigator, executor]
+    immutable: true
+    required_fields: [syntax, imports, interfaces, model_smoke, data_hashes, protocol_match, theoretical_storage, estimated_storage]
+    gate: all_hard_checks_pass
+
+  - id: preflight
+    path: cycles/{cycle}/attempts/{attempt}/preflight.json
+    producer: remote_preflight
+    consumers: [executor, verifier]
+    immutable: true
+    required_fields: [host, captured_at, gpu_index, gpu_uuid, gpu_memory, gpu_load, processes, software, disk, approved_gpus, requested_gpu_count]
+    gate: requested_resources_available
+
+  - id: attempt_run_manifest
+    path: cycles/{cycle}/attempts/{attempt}/run_manifest.json
+    producer: executor
+    consumers: [monitor, verifier, diagnosis]
+    immutable: true
+    required_fields: [command, cwd, env_allowlist, input_hashes, seeds, shards, started_at, timeout, pid]
+    gate: command_and_inputs_traceable
+
+  - id: predictions
+    path: cycles/{cycle}/attempts/{attempt}/predictions/{task}.jsonl
+    producer: evaluator
+    consumers: [metric_aggregator, verifier, diagnosis]
+    immutable_after_exit: true
+    required_fields: [sample_id, task, input_sha256, prediction, references, score, input_tokens, output_tokens, finish_reason, status, elapsed_seconds]
+    gate: sample_ids_exact_unique_and_complete
+
+  - id: storage_trace
+    path: cycles/{cycle}/attempts/{attempt}/storage_trace.jsonl
+    producer: storage_auditor
+    consumers: [metric_aggregator, verifier, diagnosis]
+    immutable_after_exit: true
+    required_fields: [request_id, sequence_length, layers, kv_elements, payload_bytes, index_bytes, scale_bytes, zero_point_bytes, metadata_bytes, residual_bytes, padding_bytes, alignment_bytes, codebook_bytes, logical_total_bytes, allocated_total_bytes, theoretical_average_bits, vecinfer_reference_bytes, shared_cost_policy]
+    gate: every_completed_request_accounted
+
+  - id: runtime_trace
+    path: cycles/{cycle}/attempts/{attempt}/runtime_trace.jsonl
+    producer: runtime_monitor
+    consumers: [metric_aggregator, verifier, diagnosis]
+    immutable_after_exit: true
+    required_fields: [captured_at, gpu_uuid, gpu_memory_used, gpu_utilization, cpu_memory_used, phase]
+    gate: trace_covers_execution_window
+
+  - id: attempt_exit
+    path: cycles/{cycle}/attempts/{attempt}/exit.json
+    producer: executor
+    consumers: [navigator, metric_aggregator, diagnosis]
+    immutable: true
+    required_fields: [exit_code, ended_at, elapsed_seconds, timed_out, oom, completed_tasks, missing_tasks, log_hashes]
+    gate: attempt_is_closed
+
+  - id: metrics
+    path: cycles/{cycle}/metrics.json
+    producer: metric_aggregator
+    consumers: [verified_registry, diagnosis, decision_engine]
+    immutable: true
+    required_fields: [tasks, longbench, gsm8k, math500, theoretical_storage_pass, actual_storage_pass, storage_accounting_summary, peak_gpu_memory, elapsed_seconds, failures, comparison_mode, evaluation_coverage]
+    gate: derived_only_from_complete_raw_artifacts
+
+  - id: verified_registry
+    path: cycles/{cycle}/verified_registry.json
+    producer: verified_registry
+    consumers: [decision_engine, reporter]
+    immutable: true
+    required_fields: [values, rejected_claims, source_hashes]
+    gate: every_registered_value_has_raw_provenance
+
+  - id: experiment_diagnosis
+    path: cycles/{cycle}/experiment_diagnosis.json
+    producer: experiment_diagnoser
+    consumers: [repair_agent, decision_engine, lesson_extractor]
+    immutable: true
+    required_fields: [deficiencies, severity, evidence, repairable, suggested_actions, measurement_valid]
+    gate: all_failures_classified
+
+  - id: decision
+    path: cycles/{cycle}/decision.json
+    producer: decision_engine
+    consumers: [navigator, next_cycle_initializer, reporter]
+    immutable: true
+    required_fields: [action, verified_value_ids, rationale, next_cycle_constraints, cooldown, measurement_valid]
+    allowed_actions: [KEEP, REFINE, PIVOT, PROMOTE, ARCHIVE, STOP]
+    gate: action_is_supported_by_verified_evidence
+
+  - id: lessons
+    path: cycles/{cycle}/lessons.jsonl
+    producer: lesson_extractor
+    consumers: [candidate_generator, repair_agent]
+    immutable: true
+    required_fields: [lesson_id, evidence, scope, failed_mechanism, effective_fix, confidence, source_cycle]
+    gate: lesson_references_existing_evidence
+
+  - id: terminal
+    path: terminal.json
+    producer: navigator
+    consumers: [reporter]
+    immutable: true
+    required_fields: [termination_type, final_candidate_id, final_evidence, unresolved, reproduction_entrypoint]
+    gate: stop_decision_or_unrecoverable_error_exists
+
+routing_errors:
+  missing_input: E_INPUT_MISSING
+  input_drift: E_INPUT_DRIFT
+  malformed_artifact: E_ARTIFACT_INVALID
+  schema_mismatch: E_SCHEMA_MISMATCH
+  incomplete_samples: E_SAMPLES_INCOMPLETE
+  evaluation_drift: E_EVAL_PROTOCOL_DRIFT
+  storage_budget_exceeded: E_STORAGE_BUDGET
+  remote_environment_failure: E_REMOTE_ENV
+  gpu_out_of_memory: E_GPU_OOM
+  execution_timeout: E_TIMEOUT
+  metric_provenance_failure: E_METRIC_UNVERIFIED
+  retry_budget_exhausted: E_RETRY_EXHAUSTED

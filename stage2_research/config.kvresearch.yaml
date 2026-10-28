@@ -1,0 +1,31 @@
+schema_version: 1
+
+project:
+  root: /nfs/AE/zsh/airesarch_v3/stage2_research
+  runs_dir: /nfs/AE/zsh/airesarch_v3/stage2_research/runs
+  artifact_catalog: /nfs/AE/zsh/airesarch_v3/stage2_research/framework_design/general_artifacts.yaml
+
+research:
+  engine: preparation
+  candidate_count: 3
+
+dataset_split:
+  development_fraction: 0.05
+  formal_fraction: 0.30
+  remaining_fraction: 0.65
+  seed: 42
+
+automation:
+  max_cycles: 12
+  max_parallel_subagents: 4
+  command_timeout_seconds: 14400
+  agent_command:
+    - python3
+    - -m
+    - kvresearch.codex_backend
+    - --prompt
+    - "{prompt}"
+    - --run
+    - "{run}"
+    - --max-subagents
+    - "{max_parallel_subagents}"

@@ -1,0 +1,110 @@
+# Framework-only copy. Prepare inputs/ and review model, baseline, and remote settings before init.
+schema_version: 1
+
+project:
+  root: /nfs/AE/zsh/airesarch_v3/stage2_research
+  runs_dir: /nfs/AE/zsh/airesarch_v3/stage2_research/runs
+  baseline_report: /nfs/AE/zsh/airesarch_v3/inputs/VECINFER_1BIT_BASELINE.md
+  fixed_testset: /nfs/AE/zsh/airesarch_v3/inputs/fixed_small_testset
+  formal_testset: /nfs/AE/zsh/airesarch_v3/inputs/formal_30pct_testset
+  formal_remaining_testset: /nfs/AE/zsh/airesarch_v3/inputs/formal_remaining_70pct_testset
+  formal_baseline: /nfs/AE/zsh/airesarch_v3/inputs/formal_30pct_testset/vecinfer_1bit_baseline.json
+  artifact_catalog: /nfs/AE/zsh/airesarch_v3/stage2_research/framework_design/artifact_catalog.yaml
+
+model:
+  name: llama-3.1-8b-instruct
+  path: /nfs/AE/zsh/vecinfer/models/NousResearch/Meta-Llama-3.1-8B-Instruct
+  config: /nfs/AE/zsh/vecinfer/result/manifests/llama-3.1-8b-instruct-local.json
+
+baseline:
+  source: /nfs/AE/zsh/vecinfer
+  secondary_source: /nfs/AE/zsh/vecinfer_v1
+  centroids: /nfs/AE/zsh/vecinfer/centroids/llama-3.1-8b-instruct/qasper
+  scales: /nfs/AE/zsh/vecinfer/scales/NousResearch/Meta-Llama-3.1-8B-Instruct.pt
+  read_only: true
+
+remote:
+  host: 192.168.16.40
+  port: 28415
+  user: root
+  control_socket: /tmp/codex-pod-192.168.16.40-28415.sock
+  python: /opt/conda/bin/python
+  vecinfer_python: /opt/conda/bin/python
+  expected_hostname: ai-16-40
+  minimum_free_gpu_memory_mib: 22000
+  maximum_idle_gpu_utilization_percent: 5
+  runtime_pythonpath:
+    - /nfs/AE/zsh/vecinfer_v1/runtime/extensions/cu124-torch260
+    - /nfs/AE/zsh/vecinfer_v1/runtime/vendor
+    - /nfs/AE/zsh/vecinfer_v1/runtime/venv/lib/python3.11/site-packages
+
+evaluation:
+  development_tasks: [qasper, lcc, gov_report, gsm8k, math500]
+  samples_per_task: 32
+  formal_sample_fraction: 0.30
+  formal_remaining_fraction: 0.70
+  formal_gpu_count: 8
+  formal_batch_sizes: [16, 8, 4, 2, 1]
+  formal_failure_rule: none_of_three_metrics_exceeds_vecinfer
+  formal_completion_rule: at_least_one_strict_gain_and_no_regressions
+
+  longbench_tasks:
+    - 2wikimqa
+    - gov_report
+    - hotpotqa
+    - lcc
+    - multi_news
+    - multifieldqa_en
+    - passage_count
+    - passage_retrieval_en
+    - qasper
+    - repobench-p
+    - samsum
+    - trec
+    - triviaqa
+  math_tasks: [gsm8k, math500]
+  seed: 42
+  decoding:
+    longbench: greedy
+    math: sampling_temperature_0.6_top_p_0.95
+  max_total_length: 16384
+
+cooldown:
+  same_family_small_gain_limit: 2
+  cooldown_cycles: 2
+  longbench_meaningful_gain_points: 0.5
+  math_meaningful_gain_correct_answers: 1
+
+storage:
+  maximum_theoretical_average_bits: 1.0
+  require_per_request_not_above_vecinfer: true
+  vecinfer:
+    layers: 32
+    kv_heads: 8
+    head_dimension: 128
+    scalar_bytes: 2
+    key_subspaces: 16
+    key_bits_per_code: 8
+    value_subspaces: 16
+    value_bits_per_code: 8
+    residual_tokens: 128
+    longbench_sink_tokens: 16
+    math_sink_tokens: 0
+  baseline_task_actual_bytes: {}
+
+automation:
+  max_cycles: 12
+  max_attempts_per_cycle: 3
+  max_parallel_subagents: 4
+  agent_command:
+    - python3
+    - -m
+    - kvresearch.codex_backend
+    - --prompt
+    - "{prompt}"
+    - --run
+    - "{run}"
+    - --max-subagents
+    - "{max_parallel_subagents}"
+  command_timeout_seconds: 14400
+  stop_when_objective_met: true
